@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block title %}Gelir &amp; Gider - Kişisel Bütçe{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>Gelir &amp; Gider İşlemleri</h1>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white">Yeni İşlem Ekle</div>
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Tarih</label>
+        <input type="date" name="date" class="form-control" value="{{ request.form.date or request.args.get('date', '') or now().strftime('%Y-%m-%d') }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tür</label>
+        <select name="type" class="form-select">
+          <option value="gelir">Gelir</option>
+          <option value="gider" selected>Gider</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tutar</label>
+        <input type="number" min="0" step="0.01" name="amount" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Hesap</label>
+        <select name="account_id" class="form-select" required>
+          <option value="" disabled selected>Seçiniz</option>
+          {% for hesap in tum_hesaplar %}
+          <option value="{{ hesap.id }}">{{ hesap.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Kategori</label>
+        <select name="category_id" class="form-select" required>
+          <option value="" disabled selected>Seçiniz</option>
+          {% for kategori in tum_kategoriler %}
+          <option value="{{ kategori.id }}">{{ kategori.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Açıklama</label>
+        <input type="text" name="description" class="form-control" placeholder="Not bırakmak isterseniz...">
+      </div>
+      <div class="col-12 text-end">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white">Filtrele</div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Başlangıç Tarihi</label>
+        <input type="date" name="start_date" class="form-control" value="{{ filtreler.start_date }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Bitiş Tarihi</label>
+        <input type="date" name="end_date" class="form-control" value="{{ filtreler.end_date }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Kategori</label>
+        <select name="category_id" class="form-select">
+          <option value="">Tümü</option>
+          {% for kategori in tum_kategoriler %}
+          <option value="{{ kategori.id }}" {% if filtreler.category_id == kategori.id %}selected{% endif %}>{{ kategori.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tür</label>
+        <select name="type" class="form-select">
+          <option value="tumu" {% if filtreler.type == 'tumu' %}selected{% endif %}>Tümü</option>
+          <option value="gelir" {% if filtreler.type == 'gelir' %}selected{% endif %}>Gelir</option>
+          <option value="gider" {% if filtreler.type == 'gider' %}selected{% endif %}>Gider</option>
+        </select>
+      </div>
+      <div class="col-md-1 align-self-end">
+        <button type="submit" class="btn btn-outline-primary w-100">Uygula</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="table-responsive shadow-sm">
+  <table class="table table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Tarih</th>
+        <th>Tür</th>
+        <th>Kategori</th>
+        <th>Hesap</th>
+        <th>Açıklama</th>
+        <th class="text-end">Tutar</th>
+        <th class="text-end">İşlemler</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for islem in islemler %}
+      <tr>
+        <td>{{ islem.date | turkish_date }}</td>
+        <td><span class="badge bg-{{ 'success' if islem.type == 'gelir' else 'danger' }}">{{ islem.type|capitalize }}</span></td>
+        <td><span class="badge bg-{{ islem.category.color }}">{{ islem.category.name }}</span></td>
+        <td>{{ islem.account.name }}</td>
+        <td>{{ islem.description or '-' }}</td>
+        <td class="text-end">{{ islem.type == 'gelir' and '+' or '-' }}{{ islem.amount | round(2) }} ₺</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editTransaction{{ islem.id }}">Düzenle</button>
+          <form action="{{ url_for('delete_transaction', transaction_id=islem.id) }}" method="post" class="d-inline" onsubmit="return confirm('İşlem silinecek. Emin misiniz?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
+          </form>
+        </td>
+      </tr>
+      <tr class="collapse" id="editTransaction{{ islem.id }}">
+        <td colspan="7">
+          <form action="{{ url_for('update_transaction', transaction_id=islem.id) }}" method="post" class="row g-3">
+            <div class="col-md-2">
+              <label class="form-label">Tarih</label>
+              <input type="date" name="date" class="form-control" value="{{ islem.date.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Tür</label>
+              <select name="type" class="form-select">
+                <option value="gelir" {% if islem.type == 'gelir' %}selected{% endif %}>Gelir</option>
+                <option value="gider" {% if islem.type == 'gider' %}selected{% endif %}>Gider</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Tutar</label>
+              <input type="number" min="0" step="0.01" name="amount" class="form-control" value="{{ islem.amount }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Hesap</label>
+              <select name="account_id" class="form-select">
+                {% for hesap in tum_hesaplar %}
+                <option value="{{ hesap.id }}" {% if hesap.id == islem.account_id %}selected{% endif %}>{{ hesap.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Kategori</label>
+              <select name="category_id" class="form-select">
+                {% for kategori in tum_kategoriler %}
+                <option value="{{ kategori.id }}" {% if kategori.id == islem.category_id %}selected{% endif %}>{{ kategori.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Açıklama</label>
+              <input type="text" name="description" class="form-control" value="{{ islem.description }}">
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-success">Güncelle</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center text-muted py-4">Filtrenize uygun işlem bulunamadı.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="table-light">
+        <th colspan="5" class="text-end">Net Toplam:</th>
+        <th colspan="2">{{ toplam | round(2) }} ₺</th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

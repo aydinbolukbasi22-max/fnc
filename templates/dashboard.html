@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - Kişisel Bütçe{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Genel Bakış</h1>
+<div class="row g-4 mb-4">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">Toplam Gelir</h6>
+        <h3 class="text-success">{{ gelirler | round(2) }} ₺</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">Toplam Gider</h6>
+        <h3 class="text-danger">{{ giderler | round(2) }} ₺</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">Net Bakiye</h6>
+        <h3 class="text-primary">{{ net_bakiye | round(2) }} ₺</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">En Çok Harcama Yapılan Kategori</h6>
+        {% if en_cok_harcanan %}
+          <span class="badge bg-{{ en_cok_harcanan.color }}">{{ en_cok_harcanan.name }}</span>
+          <h4 class="mt-2">{{ en_cok_harcanan.toplam | round(2) }} ₺</h4>
+        {% else %}
+          <p class="text-muted">Henüz veri yok.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white">Son 30 Gün Net Bakiye Trend</div>
+      <div class="card-body">
+        <canvas id="trendChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white">Hesap Bakiyeleri</div>
+      <div class="card-body">
+        <canvas id="hesapChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">Aylık Gelir &amp; Gider Dağılımı</div>
+      <div class="card-body">
+        <canvas id="aylikChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const trendVerisi = {{ trend_verisi | tojson }};
+  const hesapVerisi = {{ hesap_bakiyeleri | tojson }};
+  const aylikVeri = {{ aylik_veriler | tojson }};
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Son 30 günlük trend çizgisi
+  const trendCtx = document.getElementById('trendChart');
+  new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: trendVerisi.map(i => i.tarih),
+      datasets: [{
+        label: 'Net Değişim',
+        data: trendVerisi.map(i => i.tutar),
+        fill: true,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Hesap bazlı bakiyeler
+  const hesapCtx = document.getElementById('hesapChart');
+  new Chart(hesapCtx, {
+    type: 'bar',
+    data: {
+      labels: hesapVerisi.map(i => i.hesap),
+      datasets: [{
+        label: 'Bakiye',
+        data: hesapVerisi.map(i => i.bakiye),
+        backgroundColor: '#20c997'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' ₺' } }
+      }
+    }
+  });
+
+  // Aylık gelir & gider
+  const aylikCtx = document.getElementById('aylikChart');
+  new Chart(aylikCtx, {
+    type: 'bar',
+    data: {
+      labels: aylikVeri.labels,
+      datasets: [
+        {
+          label: 'Gelir',
+          data: aylikVeri.gelir,
+          backgroundColor: '#198754'
+        },
+        {
+          label: 'Gider',
+          data: aylikVeri.gider,
+          backgroundColor: '#dc3545'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: false },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+</script>
+{% endblock %}
