@@ -15,6 +15,7 @@ class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255))
+    currency = db.Column(db.String(3), nullable=False, default="TRY")
 
     transactions = db.relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
 

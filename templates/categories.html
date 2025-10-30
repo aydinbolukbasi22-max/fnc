@@ -51,8 +51,8 @@
       <tr>
         <td>{{ kategori.name }}</td>
         <td><span class="badge bg-{{ kategori.color }}">{{ kategori.color }}</span></td>
-        <td>{{ gelir | round(2) }} ₺</td>
-        <td>{{ gider | round(2) }} ₺</td>
+        <td>{{ gelir | round(2) }} {{ default_currency_symbol }}</td>
+        <td>{{ gider | round(2) }} {{ default_currency_symbol }}</td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editCategory{{ kategori.id }}">Düzenle</button>
           <form action="{{ url_for('delete_category', category_id=kategori.id) }}" method="post" class="d-inline" onsubmit="return confirm('Kategori silinecek. Onaylıyor musunuz?');">

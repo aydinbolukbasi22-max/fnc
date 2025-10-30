@@ -89,7 +89,7 @@
       }]
     },
     options: {
-      plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' ₺' } } }
+      plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' {{ default_currency_symbol }}' } } }
     }
   });
 
