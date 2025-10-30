@@ -202,39 +202,6 @@ def create_app() -> Flask:
 
         return wrapped_view
 
-    def _kategori_limit_durumlari():
-        """Kategorilerin bu ayki limit durumlarını hesaplar."""
-
-        bugun = date.today()
-        ay_baslangic = bugun.replace(day=1)
-        ay_sonu = ay_baslangic + relativedelta(months=1)
-
-        kategoriler = Category.query.order_by(Category.name.asc()).all()
-        durumlar = []
-        for kategori in kategoriler:
-            aylik_harcama = (
-                db.session.query(db.func.sum(Transaction.amount))
-                .filter(Transaction.category_id == kategori.id)
-                .filter(Transaction.type == "gider")
-                .filter(Transaction.date >= ay_baslangic)
-                .filter(Transaction.date < ay_sonu)
-                .scalar()
-                or 0.0
-            )
-            limit = kategori.monthly_limit
-            limit_asildi = limit is not None and aylik_harcama > limit
-            durumlar.append(
-                {
-                    "kategori": kategori,
-                    "aylik_harcama": aylik_harcama,
-                    "limit": limit,
-                    "limit_asildi": limit_asildi,
-                    "kalan_limit": (limit - aylik_harcama) if limit is not None else None,
-                }
-            )
-
-        return durumlar
-
     @app.route("/register", methods=["GET", "POST"])
     def register():
         """Yeni kullanıcı kaydı oluşturur."""
