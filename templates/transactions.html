@@ -43,6 +43,16 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-md-3">
+        <label class="form-label">Duygu Etiketi</label>
+        {% set selected_emotion = request.form.get('emotion') %}
+        <select name="emotion" class="form-select">
+          <option value="" {% if not selected_emotion %}selected{% endif %}>Seçiniz</option>
+          {% for value, label in emotion_choices %}
+          <option value="{{ value }}" {% if selected_emotion == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="col-12">
         <label class="form-label">Açıklama</label>
         <input type="text" name="description" class="form-control" placeholder="Not bırakmak isterseniz...">
@@ -99,6 +109,7 @@
         <th>Kategori</th>
         <th>Hesap</th>
         <th>Açıklama</th>
+        <th>Duygu</th>
         <th class="text-end">Tutar</th>
         <th class="text-end">İşlemler</th>
       </tr>
@@ -111,6 +122,11 @@
         <td><span class="badge bg-{{ islem.category.color }}">{{ islem.category.name }}</span></td>
         <td>{{ islem.account.name }}</td>
         <td>{{ islem.description or '-' }}</td>
+        <td>
+          {% if islem.emotion %}
+          <span class="badge bg-light text-dark border">{{ emotion_labels.get(islem.emotion, islem.emotion|capitalize) }}</span>
+          {% else %}-{% endif %}
+        </td>
         <td class="text-end">{{ islem.type == 'gelir' and '+' or '-' }}{{ islem.amount | round(2) }} {{ currency_symbols.get(islem.account.currency, default_currency_symbol) }}</td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editTransaction{{ islem.id }}">Düzenle</button>
@@ -120,7 +136,7 @@
         </td>
       </tr>
       <tr class="collapse" id="editTransaction{{ islem.id }}">
-        <td colspan="7">
+        <td colspan="8">
           <form action="{{ url_for('update_transaction', transaction_id=islem.id) }}" method="post" class="row g-3">
             <div class="col-md-2">
               <label class="form-label">Tarih</label>
@@ -153,6 +169,15 @@
                 {% endfor %}
               </select>
             </div>
+            <div class="col-md-3">
+              <label class="form-label">Duygu Etiketi</label>
+              <select name="emotion" class="form-select">
+                <option value="">Seçiniz</option>
+                {% for value, label in emotion_choices %}
+                <option value="{{ value }}" {% if value == islem.emotion %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
             <div class="col-12">
               <label class="form-label">Açıklama</label>
               <input type="text" name="description" class="form-control" value="{{ islem.description }}">
@@ -165,13 +190,13 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="7" class="text-center text-muted py-4">Filtrenize uygun işlem bulunamadı.</td>
+        <td colspan="8" class="text-center text-muted py-4">Filtrenize uygun işlem bulunamadı.</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot>
       <tr class="table-light">
-        <th colspan="5" class="text-end">Net Toplam:</th>
+        <th colspan="6" class="text-end">Net Toplam:</th>
         <th colspan="2">{{ toplam | round(2) }} {{ default_currency_symbol }}</th>
       </tr>
     </tfoot>

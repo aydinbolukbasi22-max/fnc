@@ -1,5 +1,5 @@
 """SQLAlchemy modelleri ve yardımcı fonksiyonlar."""
-from datetime import datetime
+from datetime import date, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -51,6 +51,7 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
     type = db.Column(db.String(10), nullable=False)  # gelir ya da gider
+    emotion = db.Column(db.String(50))
 
     account = db.relationship("Account", back_populates="transactions")
     category = db.relationship("Category", back_populates="transactions")
@@ -61,4 +62,17 @@ class Transaction(db.Model):
         return self.amount if self.type == "gelir" else -self.amount
 
 
-__all__ = ["db", "Account", "Category", "Transaction"]
+class SavingsGoal(db.Model):
+    """Tasarruf hedeflerini temsil eden model."""
+
+    __tablename__ = "savings_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    target_amount = db.Column(db.Float, nullable=False)
+    start_date = db.Column(db.Date, nullable=False, default=date.today)
+    target_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+__all__ = ["db", "Account", "Category", "Transaction", "SavingsGoal"]
