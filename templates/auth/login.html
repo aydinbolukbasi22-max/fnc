@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Giriş Yap · Kişisel Bütçe{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-3 text-center">Hesabınıza Giriş Yapın</h1>
+        <p class="text-muted text-center mb-4">Finansal hedeflerinizi yönetmek için oturum açın.</p>
+        <form method="post">
+          <div class="mb-3">
+            <label for="email" class="form-label">E-posta adresi</label>
+            <input type="email" class="form-control" id="email" name="email" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Şifre</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Giriş Yap</button>
+          </div>
+        </form>
+        <div class="text-center mt-3">
+          <small class="text-muted">Hesabınız yok mu? <a href="{{ url_for('register') }}">Hemen kayıt olun</a>.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
