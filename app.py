@@ -9,6 +9,7 @@ from typing import Dict, List
 from dateutil.relativedelta import relativedelta
 from flask import (
     Flask,
+    current_app,
     flash,
     g,
     redirect,
