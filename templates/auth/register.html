@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Kayıt Ol · Kişisel Bütçe{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-3 text-center">Yeni Hesap Oluşturun</h1>
+        <p class="text-muted text-center mb-4">Gelir ve giderlerinizi takip etmeye şimdi başlayın.</p>
+        <form method="post">
+          <div class="mb-3">
+            <label for="email" class="form-label">E-posta adresi</label>
+            <input type="email" class="form-control" id="email" name="email" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Şifre</label>
+            <input type="password" class="form-control" id="password" name="password" minlength="6" required>
+          </div>
+          <div class="mb-3">
+            <label for="confirm_password" class="form-label">Şifre (Tekrar)</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" minlength="6" required>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Kayıt Ol</button>
+          </div>
+        </form>
+        <div class="text-center mt-3">
+          <small class="text-muted">Zaten hesabınız var mı? <a href="{{ url_for('login') }}">Giriş yapın</a>.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -7,6 +7,17 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 
+class User(db.Model):
+    """Uygulamaya giriş yapabilecek temel kullanıcı modeli."""
+
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Account(db.Model):
     """Gelir ve gider işlemlerinin bağlandığı finansal hesap modeli."""
 
@@ -75,4 +86,4 @@ class SavingsGoal(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
-__all__ = ["db", "Account", "Category", "Transaction", "SavingsGoal"]
+__all__ = ["db", "User", "Account", "Category", "Transaction", "SavingsGoal"]
