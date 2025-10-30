@@ -3,20 +3,24 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from functools import wraps
 from typing import Dict, List
 
 from dateutil.relativedelta import relativedelta
 from flask import (
     Flask,
     flash,
+    g,
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 
-from models import Account, Category, SavingsGoal, Transaction, db
+from models import Account, Category, SavingsGoal, Transaction, User, db
 from sqlalchemy import inspect, text
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 DEFAULT_CURRENCY = "TRY"
@@ -100,6 +104,13 @@ def create_app() -> Flask:
             )
             db.session.commit()
 
+        category_columns = {col["name"] for col in inspector.get_columns("categories")}
+        if "monthly_limit" not in category_columns:
+            db.session.execute(
+                text("ALTER TABLE categories ADD COLUMN monthly_limit FLOAT")
+            )
+            db.session.commit()
+
         # Uygulama ilk kez açıldığında varsayılan kayıtlar oluşturalım.
         if not Account.query.first():
             db.session.add_all(
@@ -139,15 +150,24 @@ def create_app() -> Flask:
     def inject_common_data() -> Dict[str, object]:
         """Şablonlarda sık kullanılan verileri otomatik olarak sağlar."""
 
-        accounts = Account.query.all()
-        categories = Category.query.all()
-        toplam_bakiye = sum(a.balance() for a in accounts)
-        toplam_gelir = sum(
-            t.amount for t in Transaction.query.filter_by(type="gelir").all()
-        )
-        toplam_gider = sum(
-            t.amount for t in Transaction.query.filter_by(type="gider").all()
-        )
+        user = getattr(g, "user", None)
+        accounts: List[Account] = []
+        categories: List[Category] = []
+        toplam_bakiye = 0.0
+        toplam_gelir = 0.0
+        toplam_gider = 0.0
+
+        if user is not None:
+            accounts = Account.query.all()
+            categories = Category.query.all()
+            toplam_bakiye = sum(a.balance() for a in accounts)
+            toplam_gelir = sum(
+                t.amount for t in Transaction.query.filter_by(type="gelir").all()
+            )
+            toplam_gider = sum(
+                t.amount for t in Transaction.query.filter_by(type="gider").all()
+            )
+
         return {
             "tum_hesaplar": accounts,
             "tum_kategoriler": categories,
@@ -160,9 +180,120 @@ def create_app() -> Flask:
             "default_currency_symbol": CURRENCY_SYMBOLS[DEFAULT_CURRENCY],
             "emotion_choices": EMOTION_CHOICES,
             "emotion_labels": EMOTION_LABELS,
+            "current_user": user,
         }
 
+    @app.before_request
+    def load_logged_in_user() -> None:
+        """Oturum açmış kullanıcıyı global bağlama yükler."""
+
+        user_id = session.get("user_id")
+        g.user = db.session.get(User, user_id) if user_id else None
+
+    def login_required(view):
+        """Kullanıcı girişi gerektiren görünümler için dekoratör."""
+
+        @wraps(view)
+        def wrapped_view(*args, **kwargs):
+            if getattr(g, "user", None) is None:
+                flash("Bu sayfaya erişmek için lütfen giriş yapın.", "warning")
+                return redirect(url_for("login"))
+            return view(*args, **kwargs)
+
+        return wrapped_view
+
+    def _kategori_limit_durumlari():
+        """Kategorilerin bu ayki limit durumlarını hesaplar."""
+
+        bugun = date.today()
+        ay_baslangic = bugun.replace(day=1)
+        ay_sonu = ay_baslangic + relativedelta(months=1)
+
+        kategoriler = Category.query.order_by(Category.name.asc()).all()
+        durumlar = []
+        for kategori in kategoriler:
+            aylik_harcama = (
+                db.session.query(db.func.sum(Transaction.amount))
+                .filter(Transaction.category_id == kategori.id)
+                .filter(Transaction.type == "gider")
+                .filter(Transaction.date >= ay_baslangic)
+                .filter(Transaction.date < ay_sonu)
+                .scalar()
+                or 0.0
+            )
+            limit = kategori.monthly_limit
+            limit_asildi = limit is not None and aylik_harcama > limit
+            durumlar.append(
+                {
+                    "kategori": kategori,
+                    "aylik_harcama": aylik_harcama,
+                    "limit": limit,
+                    "limit_asildi": limit_asildi,
+                    "kalan_limit": (limit - aylik_harcama) if limit is not None else None,
+                }
+            )
+
+        return durumlar
+
+    @app.route("/register", methods=["GET", "POST"])
+    def register():
+        """Yeni kullanıcı kaydı oluşturur."""
+
+        if getattr(g, "user", None):
+            return redirect(url_for("dashboard"))
+
+        if request.method == "POST":
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if not email or not password:
+                flash("E-posta ve şifre alanları zorunludur.", "danger")
+            elif password != confirm_password:
+                flash("Şifreler eşleşmiyor. Lütfen kontrol edin.", "danger")
+            elif User.query.filter_by(email=email).first():
+                flash("Bu e-posta adresiyle zaten bir hesap mevcut.", "warning")
+            else:
+                user = User(email=email, password_hash=generate_password_hash(password))
+                db.session.add(user)
+                db.session.commit()
+                flash("Kayıt işlemi tamamlandı. Giriş yapabilirsiniz.", "success")
+                return redirect(url_for("login"))
+
+        return render_template("auth/register.html")
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        """Kullanıcı giriş işlemini gerçekleştirir."""
+
+        if getattr(g, "user", None):
+            return redirect(url_for("dashboard"))
+
+        if request.method == "POST":
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
+
+            user = User.query.filter_by(email=email).first()
+            if user and check_password_hash(user.password_hash, password):
+                session.clear()
+                session["user_id"] = user.id
+                flash("Başarıyla giriş yaptınız.", "success")
+                return redirect(url_for("dashboard"))
+
+            flash("Geçersiz e-posta veya şifre.", "danger")
+
+        return render_template("auth/login.html")
+
+    @app.route("/logout")
+    def logout():
+        """Aktif kullanıcı oturumunu sonlandırır."""
+
+        session.clear()
+        flash("Oturumunuz sonlandırıldı.", "info")
+        return redirect(url_for("login"))
+
     @app.route("/")
+    @login_required
     def dashboard():
         """Ana gösterge paneli."""
 
@@ -248,6 +379,10 @@ def create_app() -> Flask:
 
         tasarruf_planlari, kilit_mesajlari = _tasarruf_planlarini_hazirla()
 
+        kategori_limit_durumlari = _kategori_limit_durumlari()
+        limitli_kategoriler = [durum for durum in kategori_limit_durumlari if durum["limit"] is not None]
+        limit_uyarilari = [durum for durum in limitli_kategoriler if durum["limit_asildi"]]
+
         return render_template(
             "dashboard.html",
             gelirler=gelirler,
@@ -261,9 +396,13 @@ def create_app() -> Flask:
             duygu_ozeti=duygu_ozeti,
             tasarruf_planlari=tasarruf_planlari,
             kilit_mesajlari=kilit_mesajlari,
+            kategori_limit_durumlari=kategori_limit_durumlari,
+            limitli_kategoriler=limitli_kategoriler,
+            limit_uyarilari=limit_uyarilari,
         )
 
     @app.route("/savings-goals", methods=["POST"])
+    @login_required
     def create_savings_goal():
         """Yeni bir tasarruf hedefi oluşturur."""
 
@@ -292,6 +431,7 @@ def create_app() -> Flask:
         return redirect(url_for("dashboard"))
 
     @app.route("/savings-goals/<int:goal_id>/delete", methods=["POST"])
+    @login_required
     def delete_savings_goal(goal_id: int):
         """Mevcut tasarruf hedefini siler."""
 
@@ -314,6 +454,7 @@ def create_app() -> Flask:
         return None
 
     @app.route("/accounts", methods=["GET", "POST"])
+    @login_required
     def accounts():
         """Hesap listesi ve ekleme işlemleri."""
 
@@ -340,6 +481,7 @@ def create_app() -> Flask:
         )
 
     @app.route("/accounts/<int:account_id>/update", methods=["POST"])
+    @login_required
     def update_account(account_id: int):
         """Hesap bilgilerini günceller."""
 
@@ -355,6 +497,7 @@ def create_app() -> Flask:
         return redirect(url_for("accounts"))
 
     @app.route("/accounts/<int:account_id>/delete", methods=["POST"])
+    @login_required
     def delete_account(account_id: int):
         """Hesabı ve ilişkili işlemleri siler."""
 
@@ -365,36 +508,48 @@ def create_app() -> Flask:
         return redirect(url_for("accounts"))
 
     @app.route("/categories", methods=["GET", "POST"])
+    @login_required
     def categories():
         """Kategori listesi ve ekleme işlemleri."""
 
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             color = request.form.get("color", "secondary").strip() or "secondary"
-            if not name:
+            limit = request.form.get("monthly_limit", type=float)
+            if limit is not None and limit < 0:
+                flash("Aylık limit negatif olamaz.", "danger")
+            elif not name:
                 flash("Kategori adı zorunludur.", "danger")
             else:
-                kategori = Category(name=name, color=color)
+                kategori = Category(name=name, color=color, monthly_limit=limit)
                 db.session.add(kategori)
                 db.session.commit()
                 flash("Kategori eklendi.", "success")
             return redirect(url_for("categories"))
 
-        kategoriler = Category.query.order_by(Category.name.asc()).all()
-        return render_template("categories.html", kategoriler=kategoriler)
+        kategori_durumlari = _kategori_limit_durumlari()
+
+        return render_template("categories.html", kategori_durumlari=kategori_durumlari)
 
     @app.route("/categories/<int:category_id>/update", methods=["POST"])
+    @login_required
     def update_category(category_id: int):
         """Kategori bilgilerini günceller."""
 
         kategori = Category.query.get_or_404(category_id)
         kategori.name = request.form.get("name", kategori.name).strip()
         kategori.color = request.form.get("color", kategori.color).strip() or kategori.color
+        limit = request.form.get("monthly_limit", type=float)
+        if limit is not None and limit < 0:
+            flash("Aylık limit negatif olamaz.", "danger")
+            return redirect(url_for("categories"))
+        kategori.monthly_limit = limit
         db.session.commit()
         flash("Kategori güncellendi.", "success")
         return redirect(url_for("categories"))
 
     @app.route("/categories/<int:category_id>/delete", methods=["POST"])
+    @login_required
     def delete_category(category_id: int):
         """Kategoriyi siler."""
 
@@ -405,6 +560,7 @@ def create_app() -> Flask:
         return redirect(url_for("categories"))
 
     @app.route("/transactions", methods=["GET", "POST"])
+    @login_required
     def transactions():
         """Gelir ve gider işlemlerini listeler ve yeni kayıt ekler."""
 
@@ -467,6 +623,7 @@ def create_app() -> Flask:
         )
 
     @app.route("/transactions/<int:transaction_id>/update", methods=["POST"])
+    @login_required
     def update_transaction(transaction_id: int):
         """Var olan bir işlemi günceller."""
 
@@ -487,6 +644,7 @@ def create_app() -> Flask:
         return redirect(url_for("transactions"))
 
     @app.route("/transactions/<int:transaction_id>/delete", methods=["POST"])
+    @login_required
     def delete_transaction(transaction_id: int):
         """İşlemi siler."""
 
@@ -497,6 +655,7 @@ def create_app() -> Flask:
         return redirect(url_for("transactions"))
 
     @app.route("/reports")
+    @login_required
     def reports():
         """Grafik raporlarını gösterir."""
 
