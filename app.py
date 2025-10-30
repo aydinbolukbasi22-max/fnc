@@ -21,7 +21,6 @@ from flask import (
 
 from models import Account, Category, SavingsGoal, Transaction, User, db
 from sqlalchemy import inspect, text
-from sqlalchemy.exc import OperationalError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -164,7 +163,6 @@ def create_app() -> Flask:
         """Şablonlarda sık kullanılan verileri otomatik olarak sağlar."""
 
         user = getattr(g, "user", None)
-        available_routes = set(current_app.view_functions.keys())
         accounts: List[Account] = []
         categories: List[Category] = []
         toplam_bakiye = 0.0
@@ -172,27 +170,15 @@ def create_app() -> Flask:
         toplam_gider = 0.0
 
         if user is not None:
-            try:
-                accounts = Account.query.all()
-                categories = Category.query.all()
-                toplam_bakiye = sum(a.balance() for a in accounts)
-                toplam_gelir = sum(
-                    t.amount for t in Transaction.query.filter_by(type="gelir").all()
-                )
-                toplam_gider = sum(
-                    t.amount for t in Transaction.query.filter_by(type="gider").all()
-                )
-            except OperationalError:
-                initialize_database(force=True)
-                accounts = Account.query.all()
-                categories = Category.query.all()
-                toplam_bakiye = sum(a.balance() for a in accounts)
-                toplam_gelir = sum(
-                    t.amount for t in Transaction.query.filter_by(type="gelir").all()
-                )
-                toplam_gider = sum(
-                    t.amount for t in Transaction.query.filter_by(type="gider").all()
-                )
+            accounts = Account.query.all()
+            categories = Category.query.all()
+            toplam_bakiye = sum(a.balance() for a in accounts)
+            toplam_gelir = sum(
+                t.amount for t in Transaction.query.filter_by(type="gelir").all()
+            )
+            toplam_gider = sum(
+                t.amount for t in Transaction.query.filter_by(type="gider").all()
+            )
 
         return {
             "tum_hesaplar": accounts,
@@ -207,11 +193,6 @@ def create_app() -> Flask:
             "emotion_choices": EMOTION_CHOICES,
             "emotion_labels": EMOTION_LABELS,
             "current_user": user,
-            "has_dashboard_page": "dashboard" in available_routes,
-            "has_accounts_page": "accounts" in available_routes,
-            "has_transactions_page": "transactions" in available_routes,
-            "has_categories_page": "categories" in available_routes,
-            "has_reports_page": "reports" in available_routes,
         }
 
     @app.before_request
@@ -219,11 +200,7 @@ def create_app() -> Flask:
         """Oturum açmış kullanıcıyı global bağlama yükler."""
 
         user_id = session.get("user_id")
-        try:
-            g.user = db.session.get(User, user_id) if user_id else None
-        except OperationalError:
-            initialize_database(force=True)
-            g.user = db.session.get(User, user_id) if user_id else None
+        g.user = db.session.get(User, user_id) if user_id else None
 
     def login_required(view):
         """Kullanıcı girişi gerektiren görünümler için dekoratör."""
@@ -236,39 +213,6 @@ def create_app() -> Flask:
             return view(*args, **kwargs)
 
         return wrapped_view
-
-    def _kategori_limit_durumlari():
-        """Kategorilerin bu ayki limit durumlarını hesaplar."""
-
-        bugun = date.today()
-        ay_baslangic = bugun.replace(day=1)
-        ay_sonu = ay_baslangic + relativedelta(months=1)
-
-        kategoriler = Category.query.order_by(Category.name.asc()).all()
-        durumlar = []
-        for kategori in kategoriler:
-            aylik_harcama = (
-                db.session.query(db.func.sum(Transaction.amount))
-                .filter(Transaction.category_id == kategori.id)
-                .filter(Transaction.type == "gider")
-                .filter(Transaction.date >= ay_baslangic)
-                .filter(Transaction.date < ay_sonu)
-                .scalar()
-                or 0.0
-            )
-            limit = kategori.monthly_limit
-            limit_asildi = limit is not None and aylik_harcama > limit
-            durumlar.append(
-                {
-                    "kategori": kategori,
-                    "aylik_harcama": aylik_harcama,
-                    "limit": limit,
-                    "limit_asildi": limit_asildi,
-                    "kalan_limit": (limit - aylik_harcama) if limit is not None else None,
-                }
-            )
-
-        return durumlar
 
     @app.route("/register", methods=["GET", "POST"])
     def register():
@@ -286,21 +230,14 @@ def create_app() -> Flask:
                 flash("E-posta ve şifre alanları zorunludur.", "danger")
             elif password != confirm_password:
                 flash("Şifreler eşleşmiyor. Lütfen kontrol edin.", "danger")
+            elif User.query.filter_by(email=email).first():
+                flash("Bu e-posta adresiyle zaten bir hesap mevcut.", "warning")
             else:
-                try:
-                    existing_user = User.query.filter_by(email=email).first()
-                except OperationalError:
-                    initialize_database(force=True)
-                    existing_user = User.query.filter_by(email=email).first()
-
-                if existing_user:
-                    flash("Bu e-posta adresiyle zaten bir hesap mevcut.", "warning")
-                else:
-                    user = User(email=email, password_hash=generate_password_hash(password))
-                    db.session.add(user)
-                    db.session.commit()
-                    flash("Kayıt işlemi tamamlandı. Giriş yapabilirsiniz.", "success")
-                    return redirect(url_for("login"))
+                user = User(email=email, password_hash=generate_password_hash(password))
+                db.session.add(user)
+                db.session.commit()
+                flash("Kayıt işlemi tamamlandı. Giriş yapabilirsiniz.", "success")
+                return redirect(url_for("login"))
 
         return render_template("auth/register.html")
 
@@ -315,11 +252,7 @@ def create_app() -> Flask:
             email = request.form.get("email", "").strip().lower()
             password = request.form.get("password", "")
 
-            try:
-                user = User.query.filter_by(email=email).first()
-            except OperationalError:
-                initialize_database(force=True)
-                user = User.query.filter_by(email=email).first()
+            user = User.query.filter_by(email=email).first()
             if user and check_password_hash(user.password_hash, password):
                 session.clear()
                 session["user_id"] = user.id
@@ -450,11 +383,27 @@ def create_app() -> Flask:
                 limit_uyarilari=limit_uyarilari,
             )
 
-        try:
-            return render_dashboard()
-        except OperationalError:
-            initialize_database(force=True)
-            return render_dashboard()
+        kategori_limit_durumlari = _kategori_limit_durumlari()
+        limitli_kategoriler = [durum for durum in kategori_limit_durumlari if durum["limit"] is not None]
+        limit_uyarilari = [durum for durum in limitli_kategoriler if durum["limit_asildi"]]
+
+        return render_template(
+            "dashboard.html",
+            gelirler=gelirler,
+            giderler=giderler,
+            net_bakiye=net_bakiye,
+            kategori_toplamlari=kategori_toplamlari,
+            en_cok_harcanan=en_cok_harcanan,
+            trend_verisi=trend_verisi,
+            hesap_bakiyeleri=hesap_bakiyeleri,
+            aylik_veriler=aylik_veriler,
+            duygu_ozeti=duygu_ozeti,
+            tasarruf_planlari=tasarruf_planlari,
+            kilit_mesajlari=kilit_mesajlari,
+            kategori_limit_durumlari=kategori_limit_durumlari,
+            limitli_kategoriler=limitli_kategoriler,
+            limit_uyarilari=limit_uyarilari,
+        )
 
     @app.route("/savings-goals", methods=["POST"])
     @login_required
