@@ -18,21 +18,11 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           {% if current_user %}
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-              {% if has_dashboard_page %}
               <li class="nav-item"><a class="nav-link{% if request.endpoint == 'dashboard' %} active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a></li>
-              {% endif %}
-              {% if has_accounts_page %}
               <li class="nav-item"><a class="nav-link{% if request.endpoint == 'accounts' %} active{% endif %}" href="{{ url_for('accounts') }}">Hesaplar</a></li>
-              {% endif %}
-              {% if has_transactions_page %}
               <li class="nav-item"><a class="nav-link{% if request.endpoint == 'transactions' %} active{% endif %}" href="{{ url_for('transactions') }}">Gelir - Gider</a></li>
-              {% endif %}
-              {% if has_categories_page %}
               <li class="nav-item"><a class="nav-link{% if request.endpoint == 'categories' %} active{% endif %}" href="{{ url_for('categories') }}">Kategoriler</a></li>
-              {% endif %}
-              {% if has_reports_page %}
               <li class="nav-item"><a class="nav-link{% if request.endpoint == 'reports' %} active{% endif %}" href="{{ url_for('reports') }}">Raporlar</a></li>
-              {% endif %}
             </ul>
             <div class="d-flex align-items-center gap-2">
               <span class="navbar-text small text-white-50 d-none d-lg-inline">{{ current_user.email }}</span>

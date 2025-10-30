@@ -152,7 +152,6 @@ def create_app() -> Flask:
         """Şablonlarda sık kullanılan verileri otomatik olarak sağlar."""
 
         user = getattr(g, "user", None)
-        available_routes = set(current_app.view_functions.keys())
         accounts: List[Account] = []
         categories: List[Category] = []
         toplam_bakiye = 0.0
@@ -183,11 +182,6 @@ def create_app() -> Flask:
             "emotion_choices": EMOTION_CHOICES,
             "emotion_labels": EMOTION_LABELS,
             "current_user": user,
-            "has_dashboard_page": "dashboard" in available_routes,
-            "has_accounts_page": "accounts" in available_routes,
-            "has_transactions_page": "transactions" in available_routes,
-            "has_categories_page": "categories" in available_routes,
-            "has_reports_page": "reports" in available_routes,
         }
 
     @app.before_request
@@ -208,39 +202,6 @@ def create_app() -> Flask:
             return view(*args, **kwargs)
 
         return wrapped_view
-
-    def _kategori_limit_durumlari():
-        """Kategorilerin bu ayki limit durumlarını hesaplar."""
-
-        bugun = date.today()
-        ay_baslangic = bugun.replace(day=1)
-        ay_sonu = ay_baslangic + relativedelta(months=1)
-
-        kategoriler = Category.query.order_by(Category.name.asc()).all()
-        durumlar = []
-        for kategori in kategoriler:
-            aylik_harcama = (
-                db.session.query(db.func.sum(Transaction.amount))
-                .filter(Transaction.category_id == kategori.id)
-                .filter(Transaction.type == "gider")
-                .filter(Transaction.date >= ay_baslangic)
-                .filter(Transaction.date < ay_sonu)
-                .scalar()
-                or 0.0
-            )
-            limit = kategori.monthly_limit
-            limit_asildi = limit is not None and aylik_harcama > limit
-            durumlar.append(
-                {
-                    "kategori": kategori,
-                    "aylik_harcama": aylik_harcama,
-                    "limit": limit,
-                    "limit_asildi": limit_asildi,
-                    "kalan_limit": (limit - aylik_harcama) if limit is not None else None,
-                }
-            )
-
-        return durumlar
 
     @app.route("/register", methods=["GET", "POST"])
     def register():
