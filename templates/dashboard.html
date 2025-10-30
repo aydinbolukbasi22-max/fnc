@@ -8,7 +8,7 @@
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <h6 class="text-muted">Toplam Gelir</h6>
-        <h3 class="text-success">{{ gelirler | round(2) }} ₺</h3>
+        <h3 class="text-success">{{ gelirler | round(2) }} {{ default_currency_symbol }}</h3>
       </div>
     </div>
   </div>
@@ -16,7 +16,7 @@
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <h6 class="text-muted">Toplam Gider</h6>
-        <h3 class="text-danger">{{ giderler | round(2) }} ₺</h3>
+        <h3 class="text-danger">{{ giderler | round(2) }} {{ default_currency_symbol }}</h3>
       </div>
     </div>
   </div>
@@ -24,7 +24,7 @@
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <h6 class="text-muted">Net Bakiye</h6>
-        <h3 class="text-primary">{{ net_bakiye | round(2) }} ₺</h3>
+        <h3 class="text-primary">{{ net_bakiye | round(2) }} {{ default_currency_symbol }}</h3>
       </div>
     </div>
   </div>
@@ -34,7 +34,7 @@
         <h6 class="text-muted">En Çok Harcama Yapılan Kategori</h6>
         {% if en_cok_harcanan %}
           <span class="badge bg-{{ en_cok_harcanan.color }}">{{ en_cok_harcanan.name }}</span>
-          <h4 class="mt-2">{{ en_cok_harcanan.toplam | round(2) }} ₺</h4>
+          <h4 class="mt-2">{{ en_cok_harcanan.toplam | round(2) }} {{ default_currency_symbol }}</h4>
         {% else %}
           <p class="text-muted">Henüz veri yok.</p>
         {% endif %}
@@ -119,7 +119,7 @@
       responsive: true,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' ₺' } }
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' {{ default_currency_symbol }}' } }
       }
     }
   });

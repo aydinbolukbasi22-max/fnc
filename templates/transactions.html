@@ -30,7 +30,7 @@
         <select name="account_id" class="form-select" required>
           <option value="" disabled selected>Seçiniz</option>
           {% for hesap in tum_hesaplar %}
-          <option value="{{ hesap.id }}">{{ hesap.name }}</option>
+          <option value="{{ hesap.id }}">{{ hesap.name }} ({{ currency_symbols.get(hesap.currency, default_currency_symbol) }})</option>
           {% endfor %}
         </select>
       </div>
@@ -111,7 +111,7 @@
         <td><span class="badge bg-{{ islem.category.color }}">{{ islem.category.name }}</span></td>
         <td>{{ islem.account.name }}</td>
         <td>{{ islem.description or '-' }}</td>
-        <td class="text-end">{{ islem.type == 'gelir' and '+' or '-' }}{{ islem.amount | round(2) }} ₺</td>
+        <td class="text-end">{{ islem.type == 'gelir' and '+' or '-' }}{{ islem.amount | round(2) }} {{ currency_symbols.get(islem.account.currency, default_currency_symbol) }}</td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editTransaction{{ islem.id }}">Düzenle</button>
           <form action="{{ url_for('delete_transaction', transaction_id=islem.id) }}" method="post" class="d-inline" onsubmit="return confirm('İşlem silinecek. Emin misiniz?');">
@@ -141,7 +141,7 @@
               <label class="form-label">Hesap</label>
               <select name="account_id" class="form-select">
                 {% for hesap in tum_hesaplar %}
-                <option value="{{ hesap.id }}" {% if hesap.id == islem.account_id %}selected{% endif %}>{{ hesap.name }}</option>
+                <option value="{{ hesap.id }}" {% if hesap.id == islem.account_id %}selected{% endif %}>{{ hesap.name }} ({{ currency_symbols.get(hesap.currency, default_currency_symbol) }})</option>
                 {% endfor %}
               </select>
             </div>
@@ -172,7 +172,7 @@
     <tfoot>
       <tr class="table-light">
         <th colspan="5" class="text-end">Net Toplam:</th>
-        <th colspan="2">{{ toplam | round(2) }} ₺</th>
+        <th colspan="2">{{ toplam | round(2) }} {{ default_currency_symbol }}</th>
       </tr>
     </tfoot>
   </table>

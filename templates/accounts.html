@@ -10,13 +10,21 @@
   <div class="card-header bg-white">Yeni Hesap Ekle</div>
   <div class="card-body">
     <form method="post" class="row g-3">
-      <div class="col-md-5">
+      <div class="col-md-4">
         <label class="form-label">Hesap Adı</label>
         <input type="text" name="name" class="form-control" required>
       </div>
-      <div class="col-md-5">
+      <div class="col-md-4">
         <label class="form-label">Açıklama</label>
         <input type="text" name="description" class="form-control">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Para Birimi</label>
+        <select name="currency" class="form-select">
+          {% for kod, etiket in para_birimleri %}
+          <option value="{{ kod }}">{{ etiket }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-2 align-self-end">
         <button type="submit" class="btn btn-primary w-100">Kaydet</button>
@@ -31,6 +39,7 @@
       <tr>
         <th>Adı</th>
         <th>Açıklama</th>
+        <th>Para Birimi</th>
         <th>Bakiye</th>
         <th class="text-end">İşlemler</th>
       </tr>
@@ -40,7 +49,8 @@
       <tr>
         <td>{{ hesap.name }}</td>
         <td>{{ hesap.description or '-' }}</td>
-        <td>{{ hesap.balance() | round(2) }} ₺</td>
+        <td>{{ currency_symbols.get(hesap.currency, default_currency_symbol) }}</td>
+        <td>{{ hesap.balance() | round(2) }} {{ currency_symbols.get(hesap.currency, default_currency_symbol) }}</td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editAccount{{ hesap.id }}">Düzenle</button>
           <form action="{{ url_for('delete_account', account_id=hesap.id) }}" method="post" class="d-inline" onsubmit="return confirm('Hesap silinecek. Emin misiniz?');">
@@ -49,15 +59,23 @@
         </td>
       </tr>
       <tr class="collapse" id="editAccount{{ hesap.id }}">
-        <td colspan="4">
+        <td colspan="5">
           <form action="{{ url_for('update_account', account_id=hesap.id) }}" method="post" class="row g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">Hesap Adı</label>
               <input type="text" name="name" class="form-control" value="{{ hesap.name }}" required>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
               <label class="form-label">Açıklama</label>
               <input type="text" name="description" class="form-control" value="{{ hesap.description }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Para Birimi</label>
+              <select name="currency" class="form-select">
+                {% for kod, etiket in para_birimleri %}
+                <option value="{{ kod }}" {% if hesap.currency == kod %}selected{% endif %}>{{ etiket }}</option>
+                {% endfor %}
+              </select>
             </div>
             <div class="col-md-2 align-self-end">
               <button type="submit" class="btn btn-success w-100">Güncelle</button>
@@ -66,9 +84,9 @@
         </td>
       </tr>
       {% else %}
-      <tr>
-        <td colspan="4" class="text-center text-muted">Henüz hesap eklenmemiş.</td>
-      </tr>
+        <tr>
+          <td colspan="5" class="text-center text-muted">Henüz hesap eklenmemiş.</td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>

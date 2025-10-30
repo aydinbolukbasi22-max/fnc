@@ -16,6 +16,20 @@ from flask import (
 )
 
 from models import Account, Category, Transaction, db
+from sqlalchemy import inspect, text
+
+
+DEFAULT_CURRENCY = "TRY"
+CURRENCY_SYMBOLS = {
+    "TRY": "₺",
+    "USD": "$",
+    "EUR": "€",
+}
+CURRENCY_CHOICES = [
+    ("TRY", "Türk Lirası (₺)"),
+    ("USD", "ABD Doları ($)"),
+    ("EUR", "Euro (€)"),
+]
 
 
 def create_app() -> Flask:
@@ -30,13 +44,28 @@ def create_app() -> Flask:
 
     with app.app_context():
         db.create_all()
+
+        inspector = inspect(db.engine)
+        account_columns = {col["name"] for col in inspector.get_columns("accounts")}
+        if "currency" not in account_columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE accounts ADD COLUMN currency VARCHAR(3) NOT NULL DEFAULT 'TRY'"
+                )
+            )
+            db.session.commit()
+
         # Uygulama ilk kez açıldığında varsayılan kayıtlar oluşturalım.
         if not Account.query.first():
             db.session.add_all(
                 [
-                    Account(name="Nakit", description="Cüzdandaki para"),
-                    Account(name="Banka", description="Vadesiz hesap"),
-                    Account(name="Kredi Kartı", description="Kart harcamaları"),
+                    Account(name="Nakit", description="Cüzdandaki para", currency=DEFAULT_CURRENCY),
+                    Account(name="Banka", description="Vadesiz hesap", currency=DEFAULT_CURRENCY),
+                    Account(
+                        name="Kredi Kartı",
+                        description="Kart harcamaları",
+                        currency=DEFAULT_CURRENCY,
+                    ),
                 ]
             )
             db.session.commit()
@@ -81,6 +110,9 @@ def create_app() -> Flask:
             "toplam_gelir": toplam_gelir,
             "toplam_gider": toplam_gider,
             "now": datetime.now,
+            "currency_symbols": CURRENCY_SYMBOLS,
+            "default_currency": DEFAULT_CURRENCY,
+            "default_currency_symbol": CURRENCY_SYMBOLS[DEFAULT_CURRENCY],
         }
 
     @app.route("/")
@@ -171,17 +203,24 @@ def create_app() -> Flask:
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             description = request.form.get("description", "").strip()
+            currency = request.form.get("currency", DEFAULT_CURRENCY).upper()
+            if currency not in CURRENCY_SYMBOLS:
+                currency = DEFAULT_CURRENCY
             if not name:
                 flash("Hesap adı zorunludur.", "danger")
             else:
-                hesap = Account(name=name, description=description)
+                hesap = Account(name=name, description=description, currency=currency)
                 db.session.add(hesap)
                 db.session.commit()
                 flash("Hesap başarıyla eklendi.", "success")
             return redirect(url_for("accounts"))
 
         hesaplar = Account.query.order_by(Account.name.asc()).all()
-        return render_template("accounts.html", hesaplar=hesaplar)
+        return render_template(
+            "accounts.html",
+            hesaplar=hesaplar,
+            para_birimleri=CURRENCY_CHOICES,
+        )
 
     @app.route("/accounts/<int:account_id>/update", methods=["POST"])
     def update_account(account_id: int):
@@ -190,6 +229,10 @@ def create_app() -> Flask:
         hesap = Account.query.get_or_404(account_id)
         hesap.name = request.form.get("name", hesap.name).strip()
         hesap.description = request.form.get("description", hesap.description).strip()
+        currency = request.form.get("currency", hesap.currency or DEFAULT_CURRENCY).upper()
+        if currency not in CURRENCY_SYMBOLS:
+            currency = DEFAULT_CURRENCY
+        hesap.currency = currency
         db.session.commit()
         flash("Hesap güncellendi.", "success")
         return redirect(url_for("accounts"))
