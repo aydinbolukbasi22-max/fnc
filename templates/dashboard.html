@@ -43,6 +43,56 @@
   </div>
 </div>
 
+{% if kategori_limit_durumlari %}
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span>Aylık Kategori Limitleri</span>
+        {% if limit_uyarilari %}
+        <span class="badge bg-danger">{{ limit_uyarilari|length }} limit uyarısı</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if limitli_kategoriler %}
+        <div class="list-group list-group-flush">
+          {% for durum in limitli_kategoriler %}
+          {% set kategori = durum.kategori %}
+          {% set limit = durum.limit or 0 %}
+          {% set oran = (durum.aylik_harcama / limit * 100) if limit > 0 else (100 if durum.limit_asildi else 0) %}
+          {% set gosterge = oran if oran < 100 else 100 %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="fw-semibold">{{ kategori.name }}</div>
+                <small class="text-muted">Limit: {{ limit | round(2) }} {{ default_currency_symbol }}</small>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold {% if durum.limit_asildi %}text-danger{% else %}text-body{% endif %}">
+                  {{ durum.aylik_harcama | round(2) }} {{ default_currency_symbol }}
+                </div>
+                {% if durum.limit_asildi %}
+                <small class="text-danger">{{ (durum.aylik_harcama - limit) | round(2) }} {{ default_currency_symbol }} fazla</small>
+                {% else %}
+                <small class="text-muted">Kalan: {{ durum.kalan_limit | round(2) }} {{ default_currency_symbol }}</small>
+                {% endif %}
+              </div>
+            </div>
+            <div class="progress mt-2" style="height: 6px;">
+              <div class="progress-bar {% if durum.limit_asildi %}bg-danger{% else %}bg-primary{% endif %}" role="progressbar" style="width: {{ gosterge | round(0, 'floor') }}%;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Henüz aylık limit tanımlanmış kategori bulunmuyor.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-4">
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm h-100">
