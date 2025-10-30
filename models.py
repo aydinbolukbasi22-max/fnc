@@ -46,6 +46,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     color = db.Column(db.String(30), nullable=False, default="primary")
+    monthly_limit = db.Column(db.Float)
 
     transactions = db.relationship("Transaction", back_populates="category", cascade="all, delete-orphan")
 

@@ -104,6 +104,13 @@ def create_app() -> Flask:
             )
             db.session.commit()
 
+        category_columns = {col["name"] for col in inspector.get_columns("categories")}
+        if "monthly_limit" not in category_columns:
+            db.session.execute(
+                text("ALTER TABLE categories ADD COLUMN monthly_limit FLOAT")
+            )
+            db.session.commit()
+
         # Uygulama ilk kez açıldığında varsayılan kayıtlar oluşturalım.
         if not Account.query.first():
             db.session.add_all(
@@ -339,6 +346,10 @@ def create_app() -> Flask:
 
         tasarruf_planlari, kilit_mesajlari = _tasarruf_planlarini_hazirla()
 
+        kategori_limit_durumlari = _kategori_limit_durumlari()
+        limitli_kategoriler = [durum for durum in kategori_limit_durumlari if durum["limit"] is not None]
+        limit_uyarilari = [durum for durum in limitli_kategoriler if durum["limit_asildi"]]
+
         return render_template(
             "dashboard.html",
             gelirler=gelirler,
@@ -352,6 +363,9 @@ def create_app() -> Flask:
             duygu_ozeti=duygu_ozeti,
             tasarruf_planlari=tasarruf_planlari,
             kilit_mesajlari=kilit_mesajlari,
+            kategori_limit_durumlari=kategori_limit_durumlari,
+            limitli_kategoriler=limitli_kategoriler,
+            limit_uyarilari=limit_uyarilari,
         )
 
     @app.route("/savings-goals", methods=["POST"])
@@ -468,17 +482,21 @@ def create_app() -> Flask:
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             color = request.form.get("color", "secondary").strip() or "secondary"
-            if not name:
+            limit = request.form.get("monthly_limit", type=float)
+            if limit is not None and limit < 0:
+                flash("Aylık limit negatif olamaz.", "danger")
+            elif not name:
                 flash("Kategori adı zorunludur.", "danger")
             else:
-                kategori = Category(name=name, color=color)
+                kategori = Category(name=name, color=color, monthly_limit=limit)
                 db.session.add(kategori)
                 db.session.commit()
                 flash("Kategori eklendi.", "success")
             return redirect(url_for("categories"))
 
-        kategoriler = Category.query.order_by(Category.name.asc()).all()
-        return render_template("categories.html", kategoriler=kategoriler)
+        kategori_durumlari = _kategori_limit_durumlari()
+
+        return render_template("categories.html", kategori_durumlari=kategori_durumlari)
 
     @app.route("/categories/<int:category_id>/update", methods=["POST"])
     @login_required
@@ -488,6 +506,11 @@ def create_app() -> Flask:
         kategori = Category.query.get_or_404(category_id)
         kategori.name = request.form.get("name", kategori.name).strip()
         kategori.color = request.form.get("color", kategori.color).strip() or kategori.color
+        limit = request.form.get("monthly_limit", type=float)
+        if limit is not None and limit < 0:
+            flash("Aylık limit negatif olamaz.", "danger")
+            return redirect(url_for("categories"))
+        kategori.monthly_limit = limit
         db.session.commit()
         flash("Kategori güncellendi.", "success")
         return redirect(url_for("categories"))

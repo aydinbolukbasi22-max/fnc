@@ -10,11 +10,11 @@
   <div class="card-header bg-white">Yeni Kategori Ekle</div>
   <div class="card-body">
     <form method="post" class="row g-3">
-      <div class="col-md-5">
+      <div class="col-md-4">
         <label class="form-label">Kategori Adı</label>
         <input type="text" name="name" class="form-control" required>
       </div>
-      <div class="col-md-5">
+      <div class="col-md-3">
         <label class="form-label">Renk</label>
         <select name="color" class="form-select">
           <option value="primary">Mavi</option>
@@ -25,6 +25,14 @@
           <option value="info">Turkuaz</option>
           <option value="dark">Siyah</option>
         </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Aylık Limit</label>
+        <div class="input-group">
+          <input type="number" name="monthly_limit" class="form-control" min="0" step="0.01" placeholder="Opsiyonel">
+          <span class="input-group-text">{{ default_currency_symbol }}</span>
+        </div>
+        <small class="text-muted">Boş bırakırsanız limit uygulanmaz.</small>
       </div>
       <div class="col-md-2 align-self-end">
         <button type="submit" class="btn btn-primary w-100">Kaydet</button>
@@ -39,18 +47,43 @@
       <tr>
         <th>Adı</th>
         <th>Renk</th>
+        <th>Aylık Limit</th>
+        <th>Bu Ay Gider</th>
         <th>Toplam Gelir</th>
         <th>Toplam Gider</th>
         <th class="text-end">İşlemler</th>
       </tr>
     </thead>
     <tbody>
-      {% for kategori in kategoriler %}
+      {% for durum in kategori_durumlari %}
+      {% set kategori = durum.kategori %}
       {% set gelir = kategori.transactions | selectattr('type', 'equalto', 'gelir') | sum(attribute='amount') %}
       {% set gider = kategori.transactions | selectattr('type', 'equalto', 'gider') | sum(attribute='amount') %}
-      <tr>
+      <tr class="{% if durum.limit_asildi %}table-danger{% endif %}">
         <td>{{ kategori.name }}</td>
         <td><span class="badge bg-{{ kategori.color }}">{{ kategori.color }}</span></td>
+        <td>
+          {% if durum.limit is not none %}
+            {{ durum.limit | round(2) }} {{ default_currency_symbol }}
+          {% else %}
+            <span class="text-muted">Tanımsız</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="d-flex align-items-center justify-content-between">
+            <span>{{ durum.aylik_harcama | round(2) }} {{ default_currency_symbol }}</span>
+            {% if durum.limit is not none %}
+              <span class="badge {% if durum.limit_asildi %}bg-danger{% else %}bg-secondary{% endif %} ms-2">
+                {% if durum.limit_asildi %}Limit Aşıldı{% else %}{{ (100 * durum.aylik_harcama / durum.limit) | round(0) if durum.limit > 0 else 0 }}%{% endif %}
+              </span>
+            {% endif %}
+          </div>
+          {% if durum.limit is not none and not durum.limit_asildi %}
+          <small class="text-muted">Kalan: {{ durum.kalan_limit | round(2) }} {{ default_currency_symbol }}</small>
+          {% elif durum.limit_asildi %}
+          <small class="text-danger">Limit {{ (durum.aylik_harcama - durum.limit) | round(2) }} {{ default_currency_symbol }} aşıldı.</small>
+          {% endif %}
+        </td>
         <td>{{ gelir | round(2) }} {{ default_currency_symbol }}</td>
         <td>{{ gider | round(2) }} {{ default_currency_symbol }}</td>
         <td class="text-end">
@@ -61,13 +94,13 @@
         </td>
       </tr>
       <tr class="collapse" id="editCategory{{ kategori.id }}">
-        <td colspan="5">
+        <td colspan="7">
           <form action="{{ url_for('update_category', category_id=kategori.id) }}" method="post" class="row g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">Kategori Adı</label>
               <input type="text" name="name" class="form-control" value="{{ kategori.name }}" required>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">Renk</label>
               <select name="color" class="form-select">
                 {% for renk in ['primary','secondary','success','danger','warning','info','dark'] %}
@@ -75,7 +108,15 @@
                 {% endfor %}
               </select>
             </div>
-            <div class="col-md-4 align-self-end">
+            <div class="col-md-4">
+              <label class="form-label">Aylık Limit</label>
+              <div class="input-group">
+                <input type="number" name="monthly_limit" class="form-control" min="0" step="0.01" value="{{ kategori.monthly_limit if kategori.monthly_limit is not none else '' }}" placeholder="Opsiyonel">
+                <span class="input-group-text">{{ default_currency_symbol }}</span>
+              </div>
+              <small class="text-muted">Boş bırakırsanız limit uygulanmaz.</small>
+            </div>
+            <div class="col-md-2 align-self-end">
               <button type="submit" class="btn btn-success w-100">Güncelle</button>
             </div>
           </form>
@@ -83,7 +124,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="5" class="text-center text-muted">Henüz kategori eklenmemiş.</td>
+        <td colspan="7" class="text-center text-muted">Henüz kategori eklenmemiş.</td>
       </tr>
       {% endfor %}
     </tbody>
