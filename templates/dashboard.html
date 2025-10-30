@@ -63,6 +63,139 @@
 </div>
 
 <div class="row g-4 mt-1">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span>Bu Ayın Harcama Duyguları</span>
+        <span class="badge bg-secondary">{{ duygu_ozeti|length }}</span>
+      </div>
+      <div class="card-body">
+        {% if duygu_ozeti %}
+        <div class="list-group list-group-flush">
+          {% for item in duygu_ozeti %}
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">{{ item.label }}</div>
+              <small class="text-muted">{{ item.adet }} harcama</small>
+            </div>
+            <div class="text-end">
+              <div class="fw-semibold text-danger">{{ item.toplam | round(2) }} {{ default_currency_symbol }}</div>
+              <small class="text-muted">Ortalama: {{ item.ortalama | round(2) }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-muted small mb-0 mt-3">Duygu etiketlerini gelir/gider formlarından seçerek davranışsal harcama trendlerini izleyin.</p>
+        {% else %}
+        <p class="text-muted mb-0">Bu ay için etiketlenmiş harcama bulunmuyor.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white">Akıllı Tasarruf Planlayıcısı</div>
+      <div class="card-body">
+        <form action="{{ url_for('create_savings_goal') }}" method="post" class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label">Hedef Adı</label>
+            <input type="text" name="name" class="form-control" placeholder="Örn. Tatil Fonu" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Hedef Tutar</label>
+            <div class="input-group">
+              <input type="number" min="0" step="0.01" name="target_amount" class="form-control" required>
+              <span class="input-group-text">{{ default_currency_symbol }}</span>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Başlangıç</label>
+            <input type="date" name="start_date" class="form-control" value="{{ now().strftime('%Y-%m-%d') }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Hedef Tarih</label>
+            <input type="date" name="target_date" class="form-control" required>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" class="btn btn-primary">Plan Oluştur</button>
+          </div>
+        </form>
+        <hr>
+        {% if tasarruf_planlari %}
+        <div class="d-flex flex-column gap-3">
+          {% for plan in tasarruf_planlari %}
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h5 class="mb-1">{{ plan.name }}</h5>
+                <small class="text-muted">{{ plan.start_date | turkish_date }} → {{ plan.target_date | turkish_date }}</small>
+              </div>
+              <div class="text-end">
+                {% if plan.is_completed %}
+                <span class="badge bg-success">Tamamlandı</span>
+                {% else %}
+                <span class="badge bg-primary">%{{ plan.progress | round(1) }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="progress my-3" style="height: 8px;">
+              <div class="progress-bar {% if plan.is_completed %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ plan.progress | round(0, 'floor') }}%;" role="progressbar" aria-valuenow="{{ plan.progress | round(0, 'floor') }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="d-flex justify-content-between small text-muted">
+              <span>Biriktirilen: {{ plan.net_savings | round(2) }} {{ default_currency_symbol }}</span>
+              <span>Kalan: {{ plan.remaining_amount | round(2) }} {{ default_currency_symbol }}</span>
+            </div>
+            <ul class="list-unstyled small mb-0 mt-2">
+              <li>Önerilen aylık hedef: {{ plan.recommended_monthly | round(2) }} {{ default_currency_symbol }} ({{ plan.total_months }} ay)</li>
+              <li>Gerçekleşen ortalama aylık: {{ plan.actual_monthly | round(2) }} {{ default_currency_symbol }}</li>
+              <li>Kalan gün: {{ plan.remaining_days }}</li>
+            </ul>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <div>
+                {% if plan.unlocked_milestones %}
+                {% for milestone in plan.unlocked_milestones %}
+                <span class="badge bg-{{ milestone.variant }} me-1">%{{ milestone.threshold }}</span>
+                {% endfor %}
+                {% endif %}
+              </div>
+              <form action="{{ url_for('delete_savings_goal', goal_id=plan.id) }}" method="post" onsubmit="return confirm('Hedefi silmek istediğinize emin misiniz?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Henüz tanımlı tasarruf hedefiniz yok. İlk hedefinizi oluşturup birikim rotanızı planlayın.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if kilit_mesajlari %}
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">Açılan Kilitler &amp; İpuçları</div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for mesaj in kilit_mesajlari %}
+          <div class="col-md-6 col-xl-3">
+            <div class="alert alert-{{ mesaj.variant }} h-100 mb-0">
+              <h6 class="alert-heading mb-2">%{{ mesaj.threshold }} • {{ mesaj.goal_name }}</h6>
+              <p class="small mb-0">{{ mesaj.message }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mt-1">
   <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white">Aylık Gelir &amp; Gider Dağılımı</div>
