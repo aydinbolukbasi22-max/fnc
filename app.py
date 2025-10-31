@@ -276,115 +276,94 @@ def create_app() -> Flask:
     def dashboard():
         """Ana gösterge paneli."""
 
-        def render_dashboard() -> str:
-            bugun = date.today()
-            ay_baslangic = bugun.replace(day=1)
-            son_otuz_gun = date.today() - timedelta(days=29)
-            son_otuz_gun_islemleri = (
-                Transaction.query.filter(Transaction.date >= son_otuz_gun)
-                .order_by(Transaction.date.asc())
-                .all()
-            )
+        bugun = date.today()
+        ay_baslangic = bugun.replace(day=1)
+        son_otuz_gun = date.today() - timedelta(days=29)
+        son_otuz_gun_islemleri = (
+            Transaction.query.filter(Transaction.date >= son_otuz_gun)
+            .order_by(Transaction.date.asc())
+            .all()
+        )
 
-            gunluk_toplamlar: Dict[date, float] = defaultdict(float)
-            for t in son_otuz_gun_islemleri:
-                gunluk_toplamlar[t.date] += t.signed_amount()
-            trend_verisi = []
-            tarih = son_otuz_gun
-            while tarih <= date.today():
-                trend_verisi.append({
+        gunluk_toplamlar: Dict[date, float] = defaultdict(float)
+        for t in son_otuz_gun_islemleri:
+            gunluk_toplamlar[t.date] += t.signed_amount()
+        trend_verisi = []
+        tarih = son_otuz_gun
+        while tarih <= date.today():
+            trend_verisi.append(
+                {
                     "tarih": tarih.strftime("%d.%m.%Y"),
                     "tutar": gunluk_toplamlar.get(tarih, 0.0),
-                })
-                tarih += timedelta(days=1)
-
-            gelirler = (
-                db.session.query(db.func.sum(Transaction.amount))
-                .filter(Transaction.type == "gelir")
-                .scalar()
-                or 0
-            )
-            giderler = (
-                db.session.query(db.func.sum(Transaction.amount))
-                .filter(Transaction.type == "gider")
-                .scalar()
-                or 0
-            )
-            net_bakiye = gelirler - giderler
-
-            kategori_toplamlari = (
-                db.session.query(
-                    Category.name,
-                    Category.color,
-                    db.func.sum(Transaction.amount).label("toplam"),
-                )
-                .join(Transaction, Transaction.category_id == Category.id)
-                .filter(Transaction.type == "gider")
-                .group_by(Category.id)
-                .order_by(db.desc("toplam"))
-                .all()
-            )
-            en_cok_harcanan = kategori_toplamlari[0] if kategori_toplamlari else None
-
-            hesap_bakiyeleri = [
-                {"hesap": hesap.name, "bakiye": hesap.balance()} for hesap in Account.query.all()
-            ]
-
-            aylik_veriler = _aylik_gelir_gider_dagilimi()
-
-            duygu_ozeti_sorgu = (
-                db.session.query(
-                    Transaction.emotion,
-                    db.func.count(Transaction.id).label("adet"),
-                    db.func.sum(Transaction.amount).label("toplam"),
-                )
-                .filter(Transaction.type == "gider")
-                .filter(Transaction.date >= ay_baslangic)
-                .filter(Transaction.emotion.isnot(None))
-                .filter(Transaction.emotion != "")
-                .group_by(Transaction.emotion)
-                .order_by(db.desc("toplam"))
-            )
-
-            duygu_ozeti = [
-                {
-                    "emotion": emotion,
-                    "label": EMOTION_LABELS.get(emotion, emotion.title()),
-                    "adet": adet,
-                    "toplam": toplam or 0,
-                    "ortalama": (toplam or 0) / adet if adet else 0,
                 }
-                for emotion, adet, toplam in duygu_ozeti_sorgu
-            ]
-
-            tasarruf_planlari, kilit_mesajlari = _tasarruf_planlarini_hazirla()
-
-            kategori_limit_durumlari = _kategori_limit_durumlari()
-            limitli_kategoriler = [
-                durum for durum in kategori_limit_durumlari if durum["limit"] is not None
-            ]
-            limit_uyarilari = [durum for durum in limitli_kategoriler if durum["limit_asildi"]]
-
-            return render_template(
-                "dashboard.html",
-                gelirler=gelirler,
-                giderler=giderler,
-                net_bakiye=net_bakiye,
-                kategori_toplamlari=kategori_toplamlari,
-                en_cok_harcanan=en_cok_harcanan,
-                trend_verisi=trend_verisi,
-                hesap_bakiyeleri=hesap_bakiyeleri,
-                aylik_veriler=aylik_veriler,
-                duygu_ozeti=duygu_ozeti,
-                tasarruf_planlari=tasarruf_planlari,
-                kilit_mesajlari=kilit_mesajlari,
-                kategori_limit_durumlari=kategori_limit_durumlari,
-                limitli_kategoriler=limitli_kategoriler,
-                limit_uyarilari=limit_uyarilari,
             )
+            tarih += timedelta(days=1)
+
+        gelirler = (
+            db.session.query(db.func.sum(Transaction.amount))
+            .filter(Transaction.type == "gelir")
+            .scalar()
+            or 0
+        )
+        giderler = (
+            db.session.query(db.func.sum(Transaction.amount))
+            .filter(Transaction.type == "gider")
+            .scalar()
+            or 0
+        )
+        net_bakiye = gelirler - giderler
+
+        kategori_toplamlari = (
+            db.session.query(
+                Category.name,
+                Category.color,
+                db.func.sum(Transaction.amount).label("toplam"),
+            )
+            .join(Transaction, Transaction.category_id == Category.id)
+            .filter(Transaction.type == "gider")
+            .group_by(Category.id)
+            .order_by(db.desc("toplam"))
+            .all()
+        )
+        en_cok_harcanan = kategori_toplamlari[0] if kategori_toplamlari else None
+
+        hesap_bakiyeleri = [
+            {"hesap": hesap.name, "bakiye": hesap.balance()} for hesap in Account.query.all()
+        ]
+
+        aylik_veriler = _aylik_gelir_gider_dagilimi()
+
+        duygu_ozeti_sorgu = (
+            db.session.query(
+                Transaction.emotion,
+                db.func.count(Transaction.id).label("adet"),
+                db.func.sum(Transaction.amount).label("toplam"),
+            )
+            .filter(Transaction.type == "gider")
+            .filter(Transaction.date >= ay_baslangic)
+            .filter(Transaction.emotion.isnot(None))
+            .filter(Transaction.emotion != "")
+            .group_by(Transaction.emotion)
+            .order_by(db.desc("toplam"))
+        )
+
+        duygu_ozeti = [
+            {
+                "emotion": emotion,
+                "label": EMOTION_LABELS.get(emotion, emotion.title()),
+                "adet": adet,
+                "toplam": toplam or 0,
+                "ortalama": (toplam or 0) / adet if adet else 0,
+            }
+            for emotion, adet, toplam in duygu_ozeti_sorgu
+        ]
+
+        tasarruf_planlari, kilit_mesajlari = _tasarruf_planlarini_hazirla()
 
         kategori_limit_durumlari = _kategori_limit_durumlari()
-        limitli_kategoriler = [durum for durum in kategori_limit_durumlari if durum["limit"] is not None]
+        limitli_kategoriler = [
+            durum for durum in kategori_limit_durumlari if durum["limit"] is not None
+        ]
         limit_uyarilari = [durum for durum in limitli_kategoriler if durum["limit_asildi"]]
 
         return render_template(
@@ -676,6 +655,57 @@ def create_app() -> Flask:
             kategori_dagilimi=kategori_dagilimi,
             hesap_dagilimi=hesap_dagilimi,
         )
+
+    def _kategori_limit_durumlari() -> List[Dict[str, object]]:
+        """Kategorilerin aylık limitlerine göre durum özetini hazırlar."""
+
+        ay_baslangic = date.today().replace(day=1)
+        sonraki_ay = ay_baslangic + relativedelta(months=1)
+
+        aylik_harcamalar = {
+            kategori_id: toplam or 0.0
+            for kategori_id, toplam in (
+                db.session.query(
+                    Transaction.category_id,
+                    db.func.sum(Transaction.amount).label("toplam"),
+                )
+                .filter(Transaction.type == "gider")
+                .filter(Transaction.date >= ay_baslangic)
+                .filter(Transaction.date < sonraki_ay)
+                .group_by(Transaction.category_id)
+                .all()
+            )
+        }
+
+        durumlar: List[Dict[str, object]] = []
+        for kategori in Category.query.order_by(Category.name.asc()).all():
+            limit = kategori.monthly_limit
+            aylik_harcama = float(aylik_harcamalar.get(kategori.id, 0.0))
+
+            limit_asildi = False
+            kalan_limit = None
+            kullanilan_oran = None
+
+            if limit is not None:
+                limit_asildi = aylik_harcama > limit if limit > 0 else aylik_harcama > 0
+                kalan_limit = limit - aylik_harcama
+                if limit > 0:
+                    kullanilan_oran = (aylik_harcama / limit) * 100
+                else:
+                    kullanilan_oran = 100.0 if limit_asildi else 0.0
+
+            durumlar.append(
+                {
+                    "kategori": kategori,
+                    "limit": limit,
+                    "aylik_harcama": aylik_harcama,
+                    "kalan_limit": kalan_limit,
+                    "limit_asildi": limit_asildi,
+                    "kullanilan_oran": kullanilan_oran,
+                }
+            )
+
+        return durumlar
 
     def _aylik_gelir_gider_dagilimi() -> Dict[str, List]:
         """Son 6 ayın gelir/gider dağılımını çıkarır."""
