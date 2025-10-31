@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from datetime import date, datetime, timedelta
 from functools import wraps
 from typing import Dict, List
@@ -157,6 +158,29 @@ def create_app() -> Flask:
         if isinstance(value, datetime):
             value = value.date()
         return value.strftime("%d.%m.%Y")
+
+    @app.template_filter("format_amount")
+    def format_amount(value: float | Decimal | None, decimal_places: int = 8) -> str:
+        """Tutarları en fazla belirtilen basamakla formatlar."""
+
+        if value is None:
+            return "0"
+
+        try:
+            decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return str(value)
+
+        quantize_exp = Decimal(f"1e-{decimal_places}")
+        try:
+            quantized = decimal_value.quantize(quantize_exp, rounding=ROUND_DOWN)
+        except InvalidOperation:
+            quantized = decimal_value
+
+        formatted = format(quantized.normalize(), "f")
+        if "." in formatted:
+            formatted = formatted.rstrip("0").rstrip(".")
+        return formatted or "0"
 
     @app.context_processor
     def inject_common_data() -> Dict[str, object]:
