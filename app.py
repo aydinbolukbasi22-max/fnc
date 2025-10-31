@@ -677,6 +677,57 @@ def create_app() -> Flask:
             hesap_dagilimi=hesap_dagilimi,
         )
 
+    def _kategori_limit_durumlari() -> List[Dict[str, object]]:
+        """Kategorilerin aylık limitlerine göre durum özetini hazırlar."""
+
+        ay_baslangic = date.today().replace(day=1)
+        sonraki_ay = ay_baslangic + relativedelta(months=1)
+
+        aylik_harcamalar = {
+            kategori_id: toplam or 0.0
+            for kategori_id, toplam in (
+                db.session.query(
+                    Transaction.category_id,
+                    db.func.sum(Transaction.amount).label("toplam"),
+                )
+                .filter(Transaction.type == "gider")
+                .filter(Transaction.date >= ay_baslangic)
+                .filter(Transaction.date < sonraki_ay)
+                .group_by(Transaction.category_id)
+                .all()
+            )
+        }
+
+        durumlar: List[Dict[str, object]] = []
+        for kategori in Category.query.order_by(Category.name.asc()).all():
+            limit = kategori.monthly_limit
+            aylik_harcama = float(aylik_harcamalar.get(kategori.id, 0.0))
+
+            limit_asildi = False
+            kalan_limit = None
+            kullanilan_oran = None
+
+            if limit is not None:
+                limit_asildi = aylik_harcama > limit if limit > 0 else aylik_harcama > 0
+                kalan_limit = limit - aylik_harcama
+                if limit > 0:
+                    kullanilan_oran = (aylik_harcama / limit) * 100
+                else:
+                    kullanilan_oran = 100.0 if limit_asildi else 0.0
+
+            durumlar.append(
+                {
+                    "kategori": kategori,
+                    "limit": limit,
+                    "aylik_harcama": aylik_harcama,
+                    "kalan_limit": kalan_limit,
+                    "limit_asildi": limit_asildi,
+                    "kullanilan_oran": kullanilan_oran,
+                }
+            )
+
+        return durumlar
+
     def _aylik_gelir_gider_dagilimi() -> Dict[str, List]:
         """Son 6 ayın gelir/gider dağılımını çıkarır."""
 
